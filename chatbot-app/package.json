@@ -1,0 +1,17 @@
+{
+  "name": "ai-support-assistant",
+  "version": "1.0.0",
+  "description": "Deployable AI support assistant (RAG) with an Express backend. The API key stays server-side.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}

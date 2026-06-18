@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Support Assistant — The Copper Table</title>
+<style>
+  :root{--brand:#b5532e;--brand-dark:#8f3f1f;--bg:#faf6f2;--bot:#fff;--user:#b5532e;--text:#2a211c;--muted:#8a7b70;--line:#ece0d6;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(135deg,#f3ece4,#e7d8cb);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--text);}
+  .widget{width:100%;max-width:420px;background:var(--bg);border-radius:18px;box-shadow:0 18px 50px rgba(70,40,18,.18);
+    overflow:hidden;display:flex;flex-direction:column;height:620px;border:1px solid var(--line);}
+  .head{background:linear-gradient(135deg,var(--brand),var(--brand-dark));color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;}
+  .avatar{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .head .title{font-weight:600;font-size:15px;}
+  .head .status{font-size:12px;opacity:.85;display:flex;align-items:center;gap:5px;}
+  .head .status::before{content:"";width:7px;height:7px;border-radius:50%;background:#5ef0a8;display:inline-block;}
+  .msgs{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px;}
+  .msg{max-width:82%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap;}
+  .msg.bot{background:var(--bot);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;}
+  .msg.user{background:var(--user);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;}
+  .src{font-size:11.5px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);}
+  .src b{color:var(--brand-dark);}
+  .typing{align-self:flex-start;background:var(--bot);border:1px solid var(--line);padding:12px 16px;border-radius:14px;border-bottom-left-radius:4px;}
+  .typing span{display:inline-block;width:7px;height:7px;margin:0 2px;background:var(--muted);border-radius:50%;animation:b 1.3s infinite both;}
+  .typing span:nth-child(2){animation-delay:.2s;}.typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes b{0%,80%,100%{opacity:.25;}40%{opacity:1;}}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 16px 10px;}
+  .chip{background:#fff;border:1px solid var(--line);color:var(--brand-dark);font-size:12.5px;padding:7px 11px;border-radius:20px;cursor:pointer;}
+  .chip:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:#fff;}
+  .row input{flex:1;border:1px solid var(--line);border-radius:22px;padding:11px 16px;font-size:14px;outline:none;font-family:inherit;}
+  .row input:focus{border-color:var(--brand);}
+  .send{background:var(--brand);color:#fff;border:none;border-radius:50%;width:42px;height:42px;cursor:pointer;font-size:18px;flex:none;}
+  .send:hover{background:var(--brand-dark);}
+</style>
+</head>
+<body>
+  <div class="widget">
+    <div class="head">
+      <div class="avatar">🍽️</div>
+      <div><div class="title">The Copper Table</div><div class="status">AI Host · online</div></div>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <input id="input" type="text" placeholder="Ask about reservations, hours, the menu…" autocomplete="off" />
+      <button class="send" id="send" aria-label="Send">➤</button>
+    </div>
+  </div>
+<script>
+  // This frontend talks to the backend at /api/chat (same origin).
+  // The backend holds the API key and does retrieval + the LLM call.
+  const GREETING = "Welcome to The Copper Table! 🍽️ I can help with reservations, hours, our menu, dietary options, and private events. What can I get you?";
+  const SUGGESTIONS = ["Are you open tonight?","Can I book a table for 4?","Do you have vegan options?","Do you do private events?","Where do I park?"];
+  const msgs = document.getElementById("msgs"), input = document.getElementById("input"),
+        send = document.getElementById("send"), chips = document.getElementById("chips");
+
+  function add(text, who, source){
+    const d = document.createElement("div"); d.className = "msg " + who; d.textContent = text;
+    if(source){ const s = document.createElement("div"); s.className = "src"; s.innerHTML = "📄 Source: <b>"+source+"</b>"; d.appendChild(s); }
+    msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
+  }
+  function typing(on){
+    let t = document.getElementById("typing");
+    if(on && !t){ t = document.createElement("div"); t.className="typing"; t.id="typing"; t.innerHTML="<span></span><span></span><span></span>"; msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight; }
+    if(!on && t) t.remove();
+  }
+  async function ask(text){
+    const q = (text || input.value).trim(); if(!q) return;
+    add(q, "user"); input.value = ""; chips.style.display = "none"; typing(true);
+    try{
+      const res = await fetch("/api/chat", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ query:q }) });
+      const data = await res.json(); typing(false);
+      add(data.answer || "Sorry, something went wrong.", "bot", data.source);
+    }catch(e){
+      typing(false);
+      add("Sorry — I couldn't reach the server. Please try again.", "bot");
+    }
+  }
+  function renderChips(){
+    chips.innerHTML = ""; chips.style.display = "flex";
+    SUGGESTIONS.forEach(s=>{ const c=document.createElement("div"); c.className="chip"; c.textContent=s; c.onclick=()=>ask(s); chips.appendChild(c); });
+  }
+  send.onclick = () => ask();
+  input.addEventListener("keydown", e => { if(e.key === "Enter") ask(); });
+  add(GREETING, "bot"); renderChips();
+</script>
+</body>
+</html>

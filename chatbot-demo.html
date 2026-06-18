@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Host — Demo (The Copper Table)</title>
+<!--
+  ============================================================================
+  PORTFOLIO DEMO · AI Host / Support Assistant for Restaurants & Local Services
+  ============================================================================
+  Rebranded for the RESTAURANT / LOCAL-SERVICE niche. Send the link or screen-
+  share on a sales call: it answers questions instantly from a knowledge base,
+  shows the SOURCE it used (grounding), and escalates anything it can't answer.
+
+  TO REUSE FOR A REAL CLIENT (~15 min):
+    1. Edit BRAND (name, color, greeting, phone).
+    2. Replace KNOWLEDGE_BASE with the client's real info (hours, menu, booking…).
+    3. (Optional) Set CONFIG.useLLM = true + a backend proxy for live LLM answers.
+  Demo mode below needs NO API key and works offline — perfect for demos.
+  ============================================================================
+-->
+<style>
+  :root{
+    --brand:#b5532e; --brand-dark:#8f3f1f; --bg:#faf6f2; --bot-bubble:#ffffff;
+    --user-bubble:#b5532e; --text:#2a211c; --muted:#8a7b70; --line:#ece0d6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(135deg,#f3ece4 0%,#e7d8cb 100%);color:var(--text);min-height:100vh;
+    display:flex;align-items:center;justify-content:center;padding:24px;}
+  .page-wrap{width:100%;max-width:860px;}
+  .demo-note{background:#fff5e9;border:1px solid #f0cfa0;color:#7a4f1d;font-size:13px;border-radius:10px;
+    padding:10px 14px;margin-bottom:18px;line-height:1.5;}
+  .demo-note b{color:#5c3a12;}
+  .layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;}
+  .pitch{flex:1 1 240px;min-width:240px;}
+  .pitch h1{font-size:22px;margin:0 0 10px;color:var(--brand-dark);}
+  .pitch p{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 14px;}
+  .stat{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;}
+  .stat .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);margin-top:6px;flex:none;}
+  .stat span{font-size:13.5px;color:var(--text);line-height:1.5;}
+  .widget{flex:1 1 380px;min-width:320px;max-width:420px;background:var(--bg);border-radius:18px;
+    box-shadow:0 18px 50px rgba(70,40,18,0.18);overflow:hidden;display:flex;flex-direction:column;
+    height:600px;border:1px solid var(--line);}
+  .w-header{background:linear-gradient(135deg,var(--brand) 0%,var(--brand-dark) 100%);color:#fff;
+    padding:16px 18px;display:flex;align-items:center;gap:12px;}
+  .avatar{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;
+    align-items:center;justify-content:center;font-size:20px;flex:none;}
+  .w-header .title{font-weight:600;font-size:15px;}
+  .w-header .status{font-size:12px;opacity:.85;display:flex;align-items:center;gap:5px;}
+  .w-header .status::before{content:"";width:7px;height:7px;border-radius:50%;background:#5ef0a8;display:inline-block;}
+  .messages{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px;}
+  .msg{max-width:82%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap;}
+  .msg.bot{background:var(--bot-bubble);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;}
+  .msg.user{background:var(--user-bubble);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;}
+  .source{font-size:11.5px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);}
+  .source b{color:var(--brand-dark);}
+  .typing{align-self:flex-start;background:var(--bot-bubble);border:1px solid var(--line);padding:12px 16px;
+    border-radius:14px;border-bottom-left-radius:4px;}
+  .typing span{display:inline-block;width:7px;height:7px;margin:0 2px;background:var(--muted);border-radius:50%;
+    animation:blink 1.3s infinite both;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.25;}40%{opacity:1;}}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 16px 10px;}
+  .chip{background:#fff;border:1px solid var(--line);color:var(--brand-dark);font-size:12.5px;padding:7px 11px;
+    border-radius:20px;cursor:pointer;transition:all .15s;}
+  .chip:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .input-row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:#fff;}
+  .input-row input{flex:1;border:1px solid var(--line);border-radius:22px;padding:11px 16px;font-size:14px;
+    outline:none;font-family:inherit;}
+  .input-row input:focus{border-color:var(--brand);}
+  .send-btn{background:var(--brand);color:#fff;border:none;border-radius:50%;width:42px;height:42px;cursor:pointer;
+    font-size:18px;flex:none;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .send-btn:hover{background:var(--brand-dark);}
+  .footer-credit{text-align:center;font-size:12px;color:var(--muted);margin-top:18px;}
+  .footer-credit b{color:var(--brand-dark);}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <div class="demo-note">
+    <b>Demo / portfolio piece.</b> Runs fully in your browser with a built-in knowledge base — no login, no API key.
+    Swap the branding and info to rebrand it for any restaurant or local business in minutes (see comments at top of file).
+  </div>
+  <div class="layout">
+    <div class="pitch">
+      <h1>Your 24/7 AI Host</h1>
+      <p>Answers guest questions, takes reservation requests, and captures catering &amp; event leads — even when the phone's too busy to pick up.</p>
+      <div class="stat"><div class="dot"></div><span>Stops missed calls from becoming missed bookings</span></div>
+      <div class="stat"><div class="dot"></div><span>Answers menu, hours &amp; dietary questions instantly</span></div>
+      <div class="stat"><div class="dot"></div><span>Collects event &amp; catering inquiries 24/7</span></div>
+      <div class="stat"><div class="dot"></div><span>Trained only on your real info — no made-up answers</span></div>
+    </div>
+    <div class="widget">
+      <div class="w-header">
+        <div class="avatar">🍽️</div>
+        <div>
+          <div class="title">The Copper Table</div>
+          <div class="status">AI Host · online</div>
+        </div>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="chips" id="chips"></div>
+      <div class="input-row">
+        <input id="input" type="text" placeholder="Ask about reservations, hours, the menu…" autocomplete="off" />
+        <button class="send-btn" id="send" aria-label="Send">➤</button>
+      </div>
+    </div>
+  </div>
+  <div class="footer-credit">Built by <b>[Your Name]</b> · AI Assistants &amp; Automation for Local Businesses &nbsp;·&nbsp; yourwebsite.com</div>
+</div>
+
+<script>
+const CONFIG = { useLLM:false, proxyUrl:"/api/chat", confidenceThreshold:0.25 };
+
+const BRAND = {
+  name:"The Copper Table",
+  greeting:"Welcome to The Copper Table! 🍽️ I can help with reservations, hours, our menu, dietary options, and private events. What can I get you?",
+  escalation:"Happy to help with that! Let me get you to our team — could you share your name and a phone number or email, and we'll follow up shortly? You can also reach us at (555) 248-7100."
+};
+
+/* KNOWLEDGE BASE — replace with the client's real details. */
+const KNOWLEDGE_BASE = [
+  { source:"Hours",
+    keywords:["hours","open","close","closing","opening","weekend","saturday","sunday","monday","what time","late","kitchen close"],
+    answer:"We're open Tuesday–Thursday 5pm–10pm, Friday & Saturday 5pm–11pm, and Sunday 4pm–9pm. We're closed Mondays. The kitchen stops taking orders 30 minutes before close." },
+  { source:"Reservations",
+    keywords:["reservation","reserve","book","booking","table","tonight","seating","walk in","walk-in","availability","party of"],
+    answer:"We'd love to have you! You can book a table at coppertable.example/reserve, or tell me your date, time, and party size and I'll pass it to our host team to confirm. For parties of 7+ we use a quick set menu — just let me know." },
+  { source:"Location & Parking",
+    keywords:["where","location","address","parking","park","directions","find you","valet","map"],
+    answer:"We're at 88 Foundry Street, downtown, on the corner of Foundry & 2nd. There's a public lot directly behind us, and complimentary valet on Friday and Saturday evenings." },
+  { source:"Menu & Cuisine",
+    keywords:["menu","food","cuisine","serve","dishes","specials","what kind","steak","seafood","pasta","drinks","cocktails","wine"],
+    answer:"We're a modern American kitchen — wood-fired steaks and seafood, seasonal pasta, shareable starters, and a full cocktail and wine list. You can see the current menu at coppertable.example/menu; it changes with the seasons." },
+  { source:"Dietary Options",
+    keywords:["vegan","vegetarian","gluten","gluten-free","gf","allergy","allergies","dairy","nut","celiac","dietary","plant based"],
+    answer:"Absolutely — we have clearly marked vegetarian, vegan, and gluten-free dishes, and our kitchen can accommodate most allergies. Just let your server know when you arrive (or add a note to your reservation) and we'll take care of you." },
+  { source:"Private Events & Catering",
+    keywords:["event","events","private","party","catering","cater","large group","rehearsal","birthday","corporate","buyout","banquet","host"],
+    answer:"Yes! We host private events and offer off-site catering. We have a semi-private room that seats up to 30 and can do full buyouts for larger groups. Share your date, headcount, and the occasion and our events lead will send packages and pricing." },
+  { source:"Takeout & Delivery",
+    keywords:["takeout","take out","to go","pickup","pick up","delivery","deliver","order online","doordash","uber eats"],
+    answer:"You can order takeout directly at coppertable.example/order for pickup. We also deliver through DoorDash and Uber Eats within about 5 miles." },
+  { source:"Happy Hour",
+    keywords:["happy hour","specials","deals","discount","drink special","bar"],
+    answer:"Happy hour is Tuesday–Friday, 5pm–6:30pm at the bar: half-price select cocktails, $7 wines by the glass, and $9 small plates." },
+  { source:"Dress Code",
+    keywords:["dress","dress code","attire","wear","formal","casual"],
+    answer:"We're smart-casual — most guests come as they are after work. No strict dress code, but we do ask for no athletic wear in the main dining room." },
+  { source:"Gift Cards",
+    keywords:["gift card","gift cards","gift certificate","voucher","present"],
+    answer:"Gift cards are available in any amount at coppertable.example/gift-cards, and can be used for dine-in, takeout, and private events." },
+  { source:"Kids & Groups",
+    keywords:["kids","child","children","family","high chair","stroller","kid friendly","menu for kids"],
+    answer:"Kids are welcome before 8pm — we have a small kids' menu and high chairs available. For the best experience with little ones, earlier seatings are ideal." }
+];
+
+const STOPWORDS = new Set(["the","a","an","is","are","do","you","i","my","me","to","of","for","and","in","on","at","can","what","when","how","does","with","your","we","it","this","that","any","please","hi","hello","hey"]);
+function stem(w){ return w.length>3 ? w.replace(/s$/,"") : w; }
+function tokenize(text){ return text.toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w&&!STOPWORDS.has(w)); }
+
+function retrieve(query){
+  const qTokens = tokenize(query).map(stem);
+  const qPhrase = query.toLowerCase();
+  let best=null,bestScore=0;
+  for(const entry of KNOWLEDGE_BASE){
+    let score=0;
+    for(const kw of entry.keywords){
+      if(kw.includes(" ")){ if(qPhrase.includes(kw)) score+=2.5; }
+      else if(qTokens.includes(stem(kw))) score+=1;
+    }
+    const ansTokens = tokenize(entry.answer).map(stem);
+    for(const t of qTokens) if(ansTokens.includes(t)) score+=0.2;
+    if(score>bestScore){ bestScore=score; best=entry; }
+  }
+  const confidence = bestScore>0 ? bestScore/(bestScore+1.5) : 0;
+  return { entry:best, confidence, raw:bestScore };
+}
+
+async function getAnswer(query){
+  const { entry, confidence } = retrieve(query);
+  if(CONFIG.useLLM){
+    try{
+      const res = await fetch(CONFIG.proxyUrl,{ method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ query, context: entry?entry.answer:"", brand:BRAND.name }) });
+      const data = await res.json();
+      return { text:data.answer, source: entry?entry.source:null };
+    }catch(e){ return { text:BRAND.escalation, source:null }; }
+  }
+  if(!entry || confidence < CONFIG.confidenceThreshold) return { text:BRAND.escalation, source:null };
+  return { text:entry.answer, source:entry.source };
+}
+
+const messagesEl=document.getElementById("messages"), inputEl=document.getElementById("input"),
+      sendBtn=document.getElementById("send"), chipsEl=document.getElementById("chips");
+const SUGGESTIONS=["Are you open tonight?","Can I book a table for 4?","Do you have vegan options?","Do you do private events?","Where do I park?"];
+
+function addMessage(text,who,source){
+  const div=document.createElement("div"); div.className="msg "+who; div.textContent=text;
+  if(source){ const s=document.createElement("div"); s.className="source"; s.innerHTML="📄 Source: <b>"+source+"</b>"; div.appendChild(s); }
+  messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight;
+}
+function showTyping(){ const t=document.createElement("div"); t.className="typing"; t.id="typing";
+  t.innerHTML="<span></span><span></span><span></span>"; messagesEl.appendChild(t); messagesEl.scrollTop=messagesEl.scrollHeight; }
+function hideTyping(){ const t=document.getElementById("typing"); if(t) t.remove(); }
+
+async function handleSend(text){
+  const q=(text||inputEl.value).trim(); if(!q) return;
+  addMessage(q,"user"); inputEl.value=""; chipsEl.style.display="none"; showTyping();
+  await new Promise(r=>setTimeout(r,550+Math.random()*500));
+  const { text:answer, source } = await getAnswer(q);
+  hideTyping(); addMessage(answer,"bot",source);
+}
+function renderChips(){
+  chipsEl.innerHTML=""; chipsEl.style.display="flex";
+  SUGGESTIONS.forEach(s=>{ const c=document.createElement("div"); c.className="chip"; c.textContent=s; c.onclick=()=>handleSend(s); chipsEl.appendChild(c); });
+}
+sendBtn.onclick=()=>handleSend();
+inputEl.addEventListener("keydown",e=>{ if(e.key==="Enter") handleSend(); });
+addMessage(BRAND.greeting,"bot"); renderChips();
+</script>
+</body>
+</html>

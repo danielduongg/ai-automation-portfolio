@@ -1,0 +1,142 @@
+{
+  "name": "New Lead → CRM + AI-Personalized Reply",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Inquiry Form (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-260, 300],
+      "webhookId": "new-lead-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "name", "value": "={{ $json.body.name }}", "type": "string" },
+            { "id": "a2", "name": "email", "value": "={{ $json.body.email }}", "type": "string" },
+            { "id": "a3", "name": "phone", "value": "={{ $json.body.phone }}", "type": "string" },
+            { "id": "a4", "name": "message", "value": "={{ $json.body.message }}", "type": "string" },
+            { "id": "a5", "name": "source", "value": "={{ $json.body.source || 'website' }}", "type": "string" },
+            { "id": "a6", "name": "received_at", "value": "={{ $now.toISO() }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-40, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "YOUR_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Received": "={{ $json.received_at }}",
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Message": "={{ $json.message }}",
+            "Source": "={{ $json.source }}",
+            "Status": "New"
+          }
+        },
+        "options": {}
+      },
+      "id": "33333333-3333-4333-8333-333333333333",
+      "name": "Add to CRM (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [190, 300],
+      "notesInFlow": true,
+      "notes": "Append the lead as a row. Swap for HubSpot/Airtable/your CRM if preferred. Add your Google Sheets OAuth2 credential."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.6,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the warm, professional host of The Copper Table, a modern American restaurant. Write a short (90-130 word) personalized email reply to a new inquiry. Greet the person by first name, directly address what they asked, invite them to book or share details, and sign off as 'The Copper Table Team'. Do not invent prices, menu items, or availability you were not given. Plain text only.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"New inquiry from {{ $json.name }} (source: {{ $json.source }}).\\nTheir message: {{ $json.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "Draft Reply (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300],
+      "notesInFlow": true,
+      "notes": "Calls OpenAI. Create a 'Header Auth' credential: Name = Authorization, Value = Bearer YOUR_OPENAI_KEY. To use Claude instead, set url to https://api.anthropic.com/v1/messages, add header anthropic-version: 2023-06-01, and adjust the body to Anthropic's format."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalize Lead').item.json.email }}",
+        "subject": "Thanks for reaching out to The Copper Table",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "id": "55555555-5555-4555-8555-555555555555",
+      "name": "Send Email (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [650, 300],
+      "notesInFlow": true,
+      "notes": "Sends the AI-drafted reply to the lead. Add your Gmail OAuth2 credential. Swap for SMTP/SendGrid if the client uses another provider."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"received\", \"message\": \"Thanks! We'll be in touch shortly.\" }",
+        "options": {}
+      },
+      "id": "66666666-6666-4666-8666-666666666666",
+      "name": "Respond to Form",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "content": "## New Lead → CRM + AI-Personalized Reply\n\n**What it does:** a website inquiry hits the webhook, gets logged to a CRM/Sheet, an LLM drafts a warm personalized reply, and it's emailed back automatically — then the form gets a success response.\n\n**Setup (≈15 min):**\n1. Add credentials: Google Sheets (OAuth2), a Header-Auth credential for OpenAI, and Gmail (OAuth2).\n2. Put your Google Sheet ID in the 'Add to CRM' node and give it columns: Received, Name, Email, Phone, Message, Source, Status.\n3. Point the client's contact/catering form at the webhook URL (POST name, email, phone, message, source).\n4. Activate the workflow and send a test submission.\n\n**Sells as:** $800–$1,500 build + optional $300–$800/mo retainer.",
+        "height": 300,
+        "width": 420
+      },
+      "id": "77777777-7777-4777-8777-777777777777",
+      "name": "Read Me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-260, -60]
+    }
+  ],
+  "connections": {
+    "Inquiry Form (Webhook)": { "main": [[{ "node": "Normalize Lead", "type": "main", "index": 0 }]] },
+    "Normalize Lead": { "main": [[{ "node": "Add to CRM (Google Sheets)", "type": "main", "index": 0 }]] },
+    "Add to CRM (Google Sheets)": { "main": [[{ "node": "Draft Reply (OpenAI)", "type": "main", "index": 0 }]] },
+    "Draft Reply (OpenAI)": { "main": [[{ "node": "Send Email (Gmail)", "type": "main", "index": 0 }]] },
+    "Send Email (Gmail)": { "main": [[{ "node": "Respond to Form", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "templatecredsSetupCompleted": false }
+}
